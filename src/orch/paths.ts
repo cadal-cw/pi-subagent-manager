@@ -22,7 +22,39 @@ export function isDescendant(path: string, ancestor: string): boolean {
   return path.startsWith(`${ancestor}/`);
 }
 
-/** Snapshot conversation, not the parent's prompt/loadout; retain only matched tool exchanges. */
+/**
+ * Tool result synthesized for a call still pending at fork time: the parent
+ * spawned this thread before that tool ran, so its result can never be in the
+ * snapshot. Amnesiating the call instead made children inherit "I announced
+ * the calls" as bare text, and protocol-native models (kimi-k3) reacted by
+ * emitting their native tool-call markup as plain text. Keeping the call and
+ * closing it with an honest result preserves API-legal call/result pairs and
+ * tells the child what actually happened.
+ */
+function supersededResult(
+  assistant: AgentMessage,
+  call: { id: string; name: string },
+): AgentMessage {
+  return {
+    role: "toolResult",
+    toolCallId: call.id,
+    toolName: call.name,
+    content: [
+      {
+        type: "text",
+        text: `Call superseded: the parent session forked this thread before this tool executed, so its result is not part of this thread's history. The call did not run here. If you still need this work, issue the tool call yourself.`,
+      },
+    ],
+    isError: false,
+    timestamp: assistant.timestamp,
+  } as unknown as AgentMessage;
+}
+
+/**
+ * Snapshot conversation, not the parent's prompt/loadout; retain only matched tool
+ * exchanges. Calls still pending at fork time are kept and closed with a synthesized
+ * superseded result (see {@link supersededResult}) instead of being dropped.
+ */
 export function inheritContext(messages: readonly AgentMessage[]): AgentMessage[] {
   const copy = structuredClone(messages);
   const matchedCalls = new Set<string>();
@@ -41,13 +73,23 @@ export function inheritContext(messages: readonly AgentMessage[]): AgentMessage[
       }
       continue;
     }
-    if (message.role !== "toolResult") continue;
-    const queue = pending.get(message.toolCallId);
-    const occurrence = queue?.shift();
-    if (!occurrence) continue;
-    matchedCalls.add(`${occurrence.messageIndex}:${occurrence.blockIndex}`);
-    matchedResults.add(messageIndex);
-    if (queue && !queue.length) pending.delete(message.toolCallId);
+    if (message.role === "toolResult") {
+      const queue = pending.get(message.toolCallId);
+      const occurrence = queue?.shift();
+      if (!occurrence) continue;
+      matchedCalls.add(`${occurrence.messageIndex}:${occurrence.blockIndex}`);
+      matchedResults.add(messageIndex);
+      if (queue && !queue.length) pending.delete(message.toolCallId);
+      continue;
+    }
+  }
+  // Calls still queued never received a result inside the snapshot: the fork
+  // happened before their tool ran.
+  const supersededCalls = new Set<string>();
+  for (const queue of pending.values()) {
+    for (const occurrence of queue) {
+      supersededCalls.add(`${occurrence.messageIndex}:${occurrence.blockIndex}`);
+    }
   }
 
   return copy.flatMap((message, messageIndex): AgentMessage[] => {
@@ -55,10 +97,14 @@ export function inheritContext(messages: readonly AgentMessage[]): AgentMessage[
     if (message.role === "system") return [];
     if (message.role === "assistant") {
       if (message.stopReason === "error" || message.stopReason === "aborted") return [];
-      message.content = message.content.filter(
-        (block, blockIndex) =>
-          block.type !== "toolCall" || matchedCalls.has(`${messageIndex}:${blockIndex}`),
-      );
+      const supersededHere: { id: string; name: string }[] = [];
+      message.content = message.content.filter((block, blockIndex) => {
+        if (block.type !== "toolCall") return true;
+        if (matchedCalls.has(`${messageIndex}:${blockIndex}`)) return true;
+        if (!supersededCalls.has(`${messageIndex}:${blockIndex}`)) return false;
+        supersededHere.push(block as unknown as { id: string; name: string });
+        return true;
+      });
       if (!message.content.length) return [];
       // A tools-only assistant without remaining calls should not claim a toolUse stop.
       if (
@@ -66,6 +112,9 @@ export function inheritContext(messages: readonly AgentMessage[]): AgentMessage[
         !message.content.some((block) => block.type === "toolCall")
       )
         message.stopReason = "stop";
+      const out: AgentMessage[] = [message];
+      for (const call of supersededHere) out.push(supersededResult(message, call));
+      return out;
     }
     if (message.role === "toolResult" && !matchedResults.has(messageIndex)) return [];
     return [message];
