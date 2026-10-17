@@ -79,11 +79,11 @@ test(
       async ({ cwd, directory, errors, open, close, tool }) => {
         const manager = SessionManager.create(cwd, path.join(directory, "parents"));
         let session = await open(manager);
-        assert.equal(lastValue(updates), "💵 $0.0000", "session start publishes an empty ledger");
+        assert.equal(lastValue(updates), undefined, "zero cost stays hidden at session start");
         // A root assistant flushes SessionManager's initial buffer to disk. Its own
         // .1 native cost must remain outside the standalone subagent widget.
         await session.prompt("Record a main-agent turn before delegated work");
-        assert.equal(lastValue(updates), "💵 $0.0000");
+        assert.equal(lastValue(updates), undefined, "zero cost stays hidden");
         const first = await tool<ThreadView>(session, "agent_spawn", {
           path: "worker",
           type: "worker",
@@ -122,11 +122,10 @@ test(
 
         const beforeFresh = updates.length;
         session = await open(SessionManager.create(cwd, path.join(directory, "parents")));
-        assert.ok(updates.length > beforeFresh);
         assert.equal(
-          lastValue(updates),
-          "💵 $0.0000",
-          "a replacement session does not retain old dollars",
+          updates.length,
+          beforeFresh,
+          "a zero-ledger replacement session publishes nothing, so old dollars cannot leak",
         );
         assert.deepEqual(errors, []);
       },
@@ -260,7 +259,7 @@ test(
       },
       async ({ cwd, errors, open, tool }) => {
         const session = await open(SessionManager.create(cwd));
-        assert.equal(lastValue(updates), "💵 $0.0000");
+        assert.equal(lastValue(updates), undefined, "zero cost stays hidden");
         await tool(session, "agent_spawn", {
           path: "worker",
           type: "worker",
@@ -283,7 +282,7 @@ test("default status key publishes before startup completes and Pi status includ
     agentFiles: { worker },
     extensionFactories: [footerObserver(updates)],
     onRequest(request) {
-      if (request.path) assert.equal(statuses.get(WIDGET_ID), "💵 $0.0000", "key is selectable before child returns");
+      if (request.path) assert.equal(statuses.get(WIDGET_ID), undefined, "zero cost stays hidden while the child runs");
       return answer(request.path ? 0.5 : 0.1);
     },
   }, async ({ cwd, directory, errors, open, close, tool }) => {
@@ -300,7 +299,7 @@ test("default status key publishes before startup completes and Pi status includ
       notify() {},
     }, "tui");
     await reloadSettings(session);
-    assert.equal(statuses.get(WIDGET_ID), "💵 $0.0000");
+    assert.equal(statuses.get(WIDGET_ID), undefined, "zero cost stays hidden");
     statuses.clear(); // Startup must republish even if a consumer lost the initial update.
     await tool(session, "agent_spawn", { path: "worker", type: "worker", task: "Cost", wait: true });
     await tool(session, "agent_wait", { path: "worker" });

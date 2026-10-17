@@ -114,7 +114,8 @@ pi.events.emit("pi-footer:update-widget", {
   Using the settings dialogs applies changes immediately when saved.
 - Choose only the widget matching your selected mode. Switching modes clears the
   old output; shutdown clears the published value too.
-- `$0.0000` appears at session start/reload and immediately on subagent startup.
+- A nonzero cost appears immediately on subagent startup; a `$0.0000` cost is
+  hidden entirely (providers that report no pricing never show a zero widget).
   Running costs settle on completion, pause, stop, or failure; they remain in
   agent rows until then. Nested agents are counted once, and accounting survives
   resume and reaping. The selected money, coins, or wallet icon prefixes the

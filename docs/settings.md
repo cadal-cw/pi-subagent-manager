@@ -90,13 +90,13 @@ The Labs preview shows every family's running animation frames and completed, pa
 
 ## [labs] Cost display (`costDisplay`)
 
-Open **[labs] Footer display** in `/agents settings` to choose the location, display value, and icon, then return and save. The stable ID/key is **`subagent_cost`**.
+Open **[labs] Footer display** in `/agents settings` to choose the location, display value, and icon, then return and save. The stable ID/key is **`subagent_cost`**. A `$0.0000` cost is hidden: providers that report no pricing (e.g. self-hosted gateways) never display a zero-cost widget.
 
 | Value | Output |
 | --- | --- |
-| `pi-footer-status` (default) | Publishes `💵 $0.0000` via Pi’s `setStatus` API. In `/footer`, add **Extension Status** and pick **`subagent_cost`** from the status-key selector. |
+| `pi-footer-status` (default) | Publishes the live cost via Pi’s `setStatus` API (hidden while `$0.0000`). In `/footer`, add **Extension Status** and pick **`subagent_cost`** from the status-key selector. |
 | `pi-footer-event` | Emits `pi-footer:update-widget` with `widgetId: "subagent_cost"`. Add **Pi Event Value**, enter **Widget ID** manually, and enable **Raw value only**. Event IDs do not appear in the status selector. Without an extension providing `/footer`, preserves the fallback footer, using the selected value/icon. |
-| `pi-status` | **Replace Pi status**: sets the manager’s Pi status to `Subagents: 💵 $0.0000` or `Total: 💵 $0.0000`; no pi-footer events or custom footer. |
+| `pi-status` | **Replace Pi status**: sets the manager’s Pi status to `Subagents: 💵 $0.5000`-style text (hidden while the cost is zero); no pi-footer events or custom footer. |
 
 Both status modes use the same public Pi status API: third-party footers may also display Pi status-only output. These modes never replace your footer. **Display value** (`costValue`) is independent of location: `subagents` (default) shows settled subagent-only USD; `total` adds the main session’s cost. In all modes, running subagent costs settle on completion, pause, stop, or failure. Values publish on session start/reload, immediately when a subagent starts (even at zero), after settlement/settings changes, and when main-session turns end. Switching locations clears the previous output; shutdown clears the published value.
 

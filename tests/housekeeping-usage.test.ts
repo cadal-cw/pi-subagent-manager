@@ -166,7 +166,7 @@ test("housekeeping enters Total exactly once, not the subagent-only ledger or co
     () => value,
   );
   footer.refresh(ctx);
-  assert.equal(status, "Subagents: 💵 $0.0000");
+  assert.equal(status, "", "zero cost must stay hidden");
   value = "total";
   footer.refresh(ctx);
   assert.equal(status, "Total: 💵 $0.0340");

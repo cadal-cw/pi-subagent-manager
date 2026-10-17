@@ -74,9 +74,17 @@ export class CostFooterController {
 
   refresh(ctx: ExtensionContext): void {
     const mode = this.displayMode();
-    const value = this.formatCost(
-      this.costValue() === "total" ? footerUsage(ctx.sessionManager.getEntries()).cost : 0,
-    );
+    const mainCost =
+      this.costValue() === "total" ? footerUsage(ctx.sessionManager.getEntries()).cost : 0;
+    // Providers without pricing (e.g. self-hosted gateways) keep the computed
+    // cost at $0.0000 forever; a permanently-zero widget is pure footer noise,
+    // so hide it until there is an actual number to show.
+    if (this.subagentCost() + mainCost <= 0) {
+      this.clear();
+      this.reset(ctx);
+      return;
+    }
+    const value = this.formatCost(mainCost);
     if (this.publishedMode !== undefined && this.publishedMode !== mode) {
       this.clear();
       this.reset(ctx);

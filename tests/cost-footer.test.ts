@@ -146,7 +146,6 @@ test("external footer receives only its cost slot; never install or clear its fo
   footer.refresh(ctx);
   footer.clear();
   assert.deepEqual(published, [
-    { widgetId: COST_WIDGET_ID, value: "💵 $0.0000" },
     { widgetId: COST_WIDGET_ID, value: "💵 $0.5000" },
     { widgetId: COST_WIDGET_ID, value: COST_ICON + " $0.8000" },
     { widgetId: COST_WIDGET_ID, value: COST_ICON + " $0.8000" },
@@ -187,7 +186,7 @@ test("without a footer extension, install fallback only once cost exists and res
   cost = 0;
   footer.refresh(ctx);
   assert.equal(installed.length, 2);
-  assert.deepEqual(published.at(-1), { widgetId: COST_WIDGET_ID, value: "💵 $0.0000" });
+  assert.deepEqual(published.at(-1), { widgetId: COST_WIDGET_ID, value: null });
 });
 
 test("prompt/skill named footer cannot claim the footer; loaded extension command can", () => {
@@ -233,7 +232,7 @@ test("an external footer taking ownership is never cleared by a previous fallbac
 });
 
 
-test("status-key mode registers zero cost for discovery and Pi status mode is labeled", () => {
+test("status-key mode hides zero cost and Pi status mode is labeled", () => {
   const statuses = new Map<string, string>();
   let cost = 0;
   const manager = SessionManager.inMemory();
@@ -255,7 +254,7 @@ test("status-key mode registers zero cost for discovery and Pi status mode is la
     events: { emit() { assert.fail("status modes must not emit pi-footer events"); } },
   } as any, () => cost, () => false, () => mode);
   footer.refresh(ctx);
-  assert.equal(statuses.get(COST_WIDGET_ID), "💵 $0.0000");
+  assert.equal(statuses.has(COST_WIDGET_ID), false, "zero cost must stay hidden");
   cost = 0.5;
   footer.refresh(ctx);
   assert.equal(statuses.get(COST_WIDGET_ID), "💵 $0.5000");
@@ -265,7 +264,7 @@ test("status-key mode registers zero cost for discovery and Pi status mode is la
   footer.reset(ctx);
   cost = 0;
   footer.refresh(ctx);
-  assert.equal(statuses.get(COST_WIDGET_ID), "Subagents: 💵 $0.0000");
+  assert.equal(statuses.has(COST_WIDGET_ID), false, "zero cost must stay hidden");
   footer.clear();
   assert.equal(statuses.has(COST_WIDGET_ID), false);
 });
